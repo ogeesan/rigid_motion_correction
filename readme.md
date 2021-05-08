@@ -57,7 +57,7 @@ The motion correction
 ## Loading
 ScanImage provides a function specifically written to read their output data and the speed increase is substantial.
 
-The `readsitiff()` function is a wrapper function for this, and it should be used because the ScanImage function reads the data transposed.
+The `readsitiff()` function is a wrapper function for this, and it should be used because the ScanImage function reads the data transposed (mirrored about the diagonal compared to what any other reader would extract).
 
 ## Saving
 `saveastiff()` is used for two reasons:
