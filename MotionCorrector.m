@@ -64,6 +64,32 @@ methods
     end
 
     %% Low level functions
+    function outcome_plot(~,mclog,loop_times,trial_avgs,rawdir)
+        % Create a figure to report that the session was completed
+        figure('Name','Operation completed');
+        
+        % Show what the motion correction
+        subplot(5,8,[1:4 9:12 17:20 25:28])
+        imagesc(trial_avgs,[min(trial_avgs,[],'all') prctile(trial_avgs(:),95)]) % plot what the totalaverage.tif looks like
+        xticklabels([]);yticklabels([]);title('totalaverage.tif')
+        axis square
+        colormap('gray')
+        colorbar
+        
+        % Show motion correction x-y
+        subplot(5,8,[5:8 13:16 21:24 29:32])
+        mclogplot(mclog);
+        set(gca,'TickDir','out')
+        xlabel('Frame');ylabel('File')
+        title('Motion correction visualisation')
+        
+        % Time to finish each loop
+        subplot(5,8,33:40)
+        bar(loop_times,'EdgeAlpha',0,'BarWidth',1) % plot time taken for each loop
+        xlabel('Loop');ylabel('Time (s)');title('Time per loop');yline(mean(loop_times),':');
+        
+        sgtitle(rawdir,'Interpreter','none')
+    end
 
 
     function shift = corpeak2(obj,frame,base)
