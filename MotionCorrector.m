@@ -24,9 +24,10 @@ methods
         assert(exist('+ScanImageTiffReader','dir'),'Volume loading not found.')
     end
 
+    
     function run(obj)
-        % Top-level run function which is equivalent to the old correct_motion_GS
-
+        % Top-level run function which is equivalent to the old
+        % correct_motion()
         dirs = obj.getdirs_ui(); % user input to determine what to do
         obj.motion_correct_folder(dirs.rawdir,dirs.templatepath,dirs.savedir); % run the motion correction
     end
@@ -43,19 +44,20 @@ methods
             error('Template image is multiple files, should be a single frame.')
         end
         
-        imheight = baseinfo.Height; % don't assume the size of each frame
+        imheight = baseinfo.Height; % don't assume the size of the frame
         imwidth = baseinfo.Width;
         
         tiffopts.overwrite = true; % make saveastiff overwrite if there's a file
         tiffopts.message = false; % prevent saveastiff from reporting each save
-
+        
+        % Find files to motion correct
         filelist = dir(fullfile(rawdir,'/*.tif')); % raw data from SI will be tif and not tiff
         nFiles = numel(filelist);
         
         % Initialise storage and reporters
-        mclog = struct;
-        loop_times = NaN(1,nFiles);
-        trial_avgs = NaN(imheight,imwidth,nFiles);
+        mclog = struct; % shifts for each file
+        loop_times = NaN(1,nFiles); % time taken to motion correct the file
+        trial_avgs = NaN(imheight,imwidth,nFiles); % average of each file
         fprintf('%s Commencing motion correction of %i files\n\tRaw: %s\n\tOut: %s\n',...
                 datestr(now,13),nFiles,rawdir,savedir)
         fprintf('Total:     ');
@@ -69,7 +71,7 @@ methods
         catch % if parallel toolbox isn't installed then it fails silently
         end
         
-        parfor xfile = 1:nFiles % uses the Parallel Computing Toolbox 
+        parfor xfile = 1:nFiles % uses the Parallel Computing Toolbox (if installed)
             tic
             rawpath = fullfile(filelist(xfile).folder,filelist(xfile).name);
             vol = readsitiff(rawpath); % use ScanImage's fast tif reader
@@ -82,7 +84,7 @@ methods
             
             % Apply the calculated pixel offsets onto the data
             vol = obj.apply_shifts(vol,shifts);
-            trial_avgs(:,:,xfile) = mean(vol,3); % record the average of a trial
+            trial_avgs(:,:,xfile) = nanmean(vol,3); % record the average of a trial
             
             if obj.save_result
                 [~, fpath] = fileparts(rawpath);
@@ -102,11 +104,12 @@ methods
         save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
         saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
 
-        trial_avgs = mean(trial_avgs,3) .* 1000;
+        trial_avgs = mean(trial_avgs,3);
         obj.outcome_plot(mclog,loop_times,trial_avgs,rawdir)
 
     end
 
+    
     function outcome_plot(~,mclog,loop_times,trial_avgs,rawdir)
         % Create a figure to report that the session was completed
         figure('Name','Operation completed');
@@ -135,7 +138,7 @@ methods
     end
 
 
-    %% Low level functions
+    % Low level functions
     function shift = corpeak2(obj,frame,base)
         % The actual act of motion correction.
         % A phase-correlation is used to find the x-y shift that would result in the highest
