@@ -11,7 +11,7 @@ properties
     templateimg % template image
     correctionlimit = 15 % the maximum number for frame offset
     kernel = [];
-    reader % scanimage reader object
+    corr_window_edge = 32 % the edge of the frame that will be excluded from motion correction
 
     save_result = true; % if true, save motion corrected tifs. Otherwise it only outputs mclog
 
@@ -98,11 +98,17 @@ methods
         end
         fprintf('%s Motion correction completed in %.1f seconds\n',...
                  datestr(now,13),toc(loopstart));
-        
+         
         basepath = fileparts(templatepath);
+        
+        SI = obj.get_meta(filelist); % get the first ScanImage metadata that is in the raw data (single frame's)
+        if ~isempty(SI)
+            save(fullfile(basepath,'simeta.mat'),'SI');
+        end
         save(fullfile(basepath,'mclog.mat'),'mclog');
         save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
         saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
+        
 
         trial_avgs = mean(trial_avgs,3);
         obj.outcome_plot(mclog,loop_times,trial_avgs,rawdir)
@@ -147,10 +153,11 @@ methods
 
         if nargin < 3; base = obj.templateimg; end
 
+        % Trim the data for motion correction
         [height, width] = size(base);
-        base = base(:, 33 : width - 32); % Edge of the movie is not involved in the following calculation
-        frame = frame(:, 33 : width - 32); % Edge of the movie is not involved in the following calculation
-        width = width - 64;
+        base = base(:, obj.corr_window_edge+1 : width - obj.corr_window_edge);
+        frame = frame(:, obj.corr_window_edge+1 : width - obj.corr_window_edge);
+        width = width - obj.corr_window_edge*2; % ! I don't know why this is only done for width
 
         % fast Fourier transforms
         fourier_base = fft2(double(base));
@@ -168,7 +175,6 @@ methods
         cf = ifft2(buf); % inverse fast Fourier transform - the phase correlation, imagesc(cf) if you want to see it
 
         % restrict search window of max correlation search
-        % correctionlimit = opts.corrlimit; % maximum value in one direction
         cf(obj.correctionlimit + 1 : height - obj.correctionlimit, :) = NaN;
         cf(:, obj.correctionlimit + 1 : width - obj.correctionlimit) = NaN;
         % cf(16 : height - 15, :) = 0; % original
@@ -201,7 +207,7 @@ methods
         nFrames = size(vol,3); % assumes 3rd dimensions is the z-axis
         shifts = NaN(nFrames,2);
         for xframe = 1:nFrames
-            shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe));
+            shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),base);
         end
     end
 
@@ -243,7 +249,7 @@ methods
     end
 
 
-    function vol = apply_shifts(obj,vol,shifts)
+    function vol = apply_shifts(~,vol,shifts)
         nFrames = size(shifts,1);
         for xframe = 1:nFrames
             vol(:,:,xframe) = circshift(vol(:,:,xframe),shifts(xframe,:));
