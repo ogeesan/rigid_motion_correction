@@ -247,6 +247,37 @@ methods
         dirs.savedir = savedir;
         cd(current_directory)
     end
+    
+    
+    function SI = get_meta(~,filelist)
+        % Returns the ScanImage 'Software' metadata from the first frame
+        % that it can find it for.
+        
+        counter = 0;
+        SI = [];
+        while true
+            counter = counter + 1;
+            if counter > numel(filelist) % if the raw data isn't scanimage
+                break
+            end
+            fpath = fullfile(filelist(counter).folder,filelist(counter).name);
+            info = imfinfo(fpath);
+            if isfield(info,'Software')
+                SI = struct;
+                meta = strsplit(info(1).Software,'\n');
+                for xline = 1:numel(meta)
+                    data = meta{xline};
+                    if isempty(data)
+                        continue
+                    end
+                    data = strsplit(data,' = '); % now split in two, with identifier and value
+                    SI(xline).Software = data{1};
+                    SI(xline).Value = data{2};
+                end
+                break
+            end
+        end
+    end
 
 
     function vol = apply_shifts(~,vol,shifts)
