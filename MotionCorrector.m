@@ -59,7 +59,7 @@ methods
         loop_times = NaN(1,nFiles); % time taken to motion correct the file
         trial_avgs = NaN(imheight,imwidth,nFiles); % average of each file
         fprintf('%s Commencing motion correction of %i files\n\tRaw: %s\n\tOut: %s\n',...
-                datestr(now,13),nFiles,rawdir,savedir)
+            datestr(now,13),nFiles,rawdir,savedir)
         fprintf('Total:     ');
         fprintf([repmat('.',1,nFiles) '\n'])
         fprintf('Progress:  \n')
@@ -76,7 +76,7 @@ methods
             rawpath = fullfile(filelist(xfile).folder,filelist(xfile).name);
             vol = readsitiff(rawpath); % use ScanImage's fast tif reader
             shifts = obj.find_video_offsets(vol); % calculate frame offsets of the video
-
+            
             % Record mclog output
             mclog(xfile).name = rawpath;
             mclog(xfile).vshift = shifts(:, 1);
@@ -97,10 +97,10 @@ methods
             fprintf('\b|\n');
         end
         fprintf('%s Motion correction completed in %.1f seconds\n',...
-                 datestr(now,13),toc(loopstart));
-         
-        basepath = fileparts(templatepath);
+            datestr(now,13),toc(loopstart));
         
+        % Save data into the same location as the template .tif
+        basepath = fileparts(templatepath);
         SI = obj.get_meta(filelist); % get the first ScanImage metadata that is in the raw data (single frame's)
         if ~isempty(SI)
             save(fullfile(basepath,'simeta.mat'),'SI');
@@ -109,42 +109,21 @@ methods
         save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
         saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
         
-
         trial_avgs = mean(trial_avgs,3);
         obj.outcome_plot(mclog,loop_times,trial_avgs,rawdir)
-
     end
-
     
-    function outcome_plot(~,mclog,loop_times,trial_avgs,rawdir)
-        % Create a figure to report that the session was completed
-        figure('Name','Operation completed');
-        
-        % Show what the motion correction
-        subplot(5,8,[1:4 9:12 17:20 25:28])
-        imagesc(trial_avgs,[min(trial_avgs,[],'all') prctile(trial_avgs(:),95)]) % plot what the totalaverage.tif looks like
-        xticklabels([]);yticklabels([]);title('totalaverage.tif')
-        axis square
-        colormap('gray')
-        colorbar
-        
-        % Show motion correction x-y
-        subplot(5,8,[5:8 13:16 21:24 29:32])
-        mclogplot(mclog);
-        set(gca,'TickDir','out')
-        xlabel('Frame');ylabel('File')
-        title('Motion correction visualisation')
-        
-        % Time to finish each loop
-        subplot(5,8,33:40)
-        bar(loop_times,'EdgeAlpha',0,'BarWidth',1) % plot time taken for each loop
-        xlabel('Loop');ylabel('Time (s)');title('Time per loop');yline(mean(loop_times),':');
-        
-        sgtitle(rawdir,'Interpreter','none')
-    end
-
 
     % Low level functions
+    function vol = apply_shifts(~,vol,shifts)
+        % Apply the already-calculated motion correction onto a video
+        nFrames = size(shifts,1);
+        for xframe = 1:nFrames
+            vol(:,:,xframe) = circshift(vol(:,:,xframe),shifts(xframe,:));
+        end
+    end
+    
+    
     function shift = corpeak2(obj,frame,base)
         % The actual act of motion correction.
         % A phase-correlation is used to find the x-y shift that would result in the highest
@@ -221,7 +200,6 @@ methods
         end
         current_directory = pwd; % save where you currently are for later
         cd(basedir); % cd() sets the current directory (to easily specify the next two path names)
-        impath = fullfile(basedir, fname); % the location of the base image
 
         % raw files
         rawdir = uigetdir('*.tif*', 'Select folder containing Tif-files to motion correct'); % location of raw files
@@ -278,13 +256,33 @@ methods
             end
         end
     end
-
-
-    function vol = apply_shifts(~,vol,shifts)
-        nFrames = size(shifts,1);
-        for xframe = 1:nFrames
-            vol(:,:,xframe) = circshift(vol(:,:,xframe),shifts(xframe,:));
-        end
+    
+    
+    function outcome_plot(~,mclog,loop_times,trial_avgs,rawdir)
+        % Create a figure to report that the session was completed
+        figure('Name','Operation completed');
+        
+        % Show what the motion correction
+        subplot(5,8,[1:4 9:12 17:20 25:28])
+        imagesc(trial_avgs,[min(trial_avgs,[],'all') prctile(trial_avgs(:),95)]) % plot what the totalaverage.tif looks like
+        xticklabels([]);yticklabels([]);title('totalaverage.tif')
+        axis square
+        colormap('gray')
+        colorbar
+        
+        % Show motion correction x-y
+        subplot(5,8,[5:8 13:16 21:24 29:32])
+        mclogplot(mclog);
+        set(gca,'TickDir','out')
+        xlabel('Frame');ylabel('File')
+        title('Motion correction visualisation')
+        
+        % Time to finish each loop
+        subplot(5,8,33:40)
+        bar(loop_times,'EdgeAlpha',0,'BarWidth',1) % plot time taken for each loop
+        xlabel('Loop');ylabel('Time (s)');title('Time per loop');yline(mean(loop_times),':');
+        
+        sgtitle(rawdir,'Interpreter','none')
     end
 end
 end
