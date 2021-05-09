@@ -3,7 +3,7 @@ function [RGB, HSV] = visualise_rois(roimasks,baseimg,varargin)
 % Inputs
 % ------
 %   roimasks : cell array
-%       Each cell contains index of pixels for the rOI
+%       Each cell contains index of pixels for the ROI
 %   baseimg: 2D matrix or []
 %       Image to project rois onto
 % Optional name-pair arguments
@@ -14,6 +14,7 @@ function [RGB, HSV] = visualise_rois(roimasks,baseimg,varargin)
 %   imsize : int
 %       size of frame to project RGBvis onto
 %   
+% George Stuyt May 2021
 
 %% Parse parameters
 nRois = numel(roimasks);
