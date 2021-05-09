@@ -183,12 +183,11 @@ methods
     end
     
     
-    function reshaped_vol = volume2matrix_check(~,vol)
+    function reshaped_vol = volume2matrix_check(obj,vol)
         % reshapes the volume and checks that the values line up
-        reshaped_vol = RoiReader.volume2matrix(vol);
+        reshaped_vol = obj.volume2matrix(vol);
         
-        p = primes(imheight*imwidth);
-        p = randsample(p,10);
+        p = randsample(1:imheight*imwidth,10);
         for x = 1:numel(p)
             idx = p(x);
             [row, col] = ind2sub([imheight imwidth],idx);
