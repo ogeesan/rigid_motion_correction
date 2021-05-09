@@ -24,14 +24,6 @@ methods
         assert(exist('+ScanImageTiffReader','dir'),'Volume loading not found.')
     end
 
-    
-    function run(obj)
-        % Top-level run function which is equivalent to the old
-        % correct_motion()
-        dirs = obj.getdirs_ui(); % user input to determine what to do
-        obj.motion_correct_folder(dirs.rawdir,dirs.templatepath,dirs.savedir); % run the motion correction
-    end
-
 
     function mclog = motion_correct_folder(obj,rawdir,templatepath,savedir)
         % The core function
@@ -53,6 +45,9 @@ methods
         % Find files to motion correct
         filelist = dir(fullfile(rawdir,'/*.tif')); % raw data from SI will be tif and not tiff
         nFiles = numel(filelist);
+        if obj.check_memory(filelist)
+            warning('Files are big, behaviour of the script in this situation is unknown.')
+        end
         
         % Initialise storage and reporters
         mclog = struct; % shifts for each file
@@ -120,6 +115,18 @@ methods
         nFrames = size(shifts,1);
         for xframe = 1:nFrames
             vol(:,:,xframe) = circshift(vol(:,:,xframe),shifts(xframe,:));
+        end
+    end
+    
+    
+    function flag = check_memory(~,directory)
+        % Check whether file sizes are too large
+        user = memory;
+        system_mem = user.MemAvailableAllArrays;
+        file_bytes = [directory.bytes];
+        flag = false;
+        if any(file_bytes*2 > system_mem)
+            flag = true;
         end
     end
     
