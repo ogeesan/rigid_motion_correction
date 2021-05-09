@@ -22,13 +22,11 @@ Pre-processing for ScanImage exported data.
     - roidata_meta.mat : struct of metadata used to generate Facrosstrials.mat
 
 # Usage
-Question: in what situations does this work, and what situations does it not?
 - Rigid motion correction works for zoomed in FOVs because even minute brain movement looks gross at the dendrite/spine level.
-- The top-level methods like `MotionCorrector.run` are loading in the entire file, so if it is a file that is larger than RAM you could:
-  - Use a different motion correction tool
-  - Write your own script that uses the lower level functions in `MotionCorrector` to read in chunks of the file and then `MotionCorrector.find_video_offsets()` on those, after which you'd have to stitch things together.
-
-Why the change? The functions used to motion correction have been exposed, which allows easier customisation of how things are done.
+- Whole files are loaded in to RAM, so hopefully your .tifs aren't too large
+- `MotionCorrector` and `ROIReader` are [objects](https://au.mathworks.com/company/newsletters/articles/introduction-to-object-oriented-programming-in-matlab.html), and their internals are exposed which allows building out of function
+- `visualise_rois` and `mclogplot` make plots of data
+  - `mclogplot` interpretation: the *change* in colour indicates a change in x-y location. The colour itself is not particularly informative.
 
 ## Specialised usage
 ### Motion correcting multiple sessions
