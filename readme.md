@@ -12,6 +12,14 @@ Pre-processing for ScanImage exported data.
     - Motion corrected data
     - mclog.mat : motion correction pixel shifts
     - totalaverage.tif : average of every frame motion corrected
+    - trial_averages.mat : matrix of each file's average
+- Fluorescence extraction
+  - Use `readroi` in the Command Window to run
+    - Select RoiSet.zip file
+    - Select folder with files to read
+  - Outputs
+    - Facrosstrials.mat : {nTrials,nRois} cell array with traces of each
+    - roidata_meta.mat : struct of metadata used to generate Facrosstrials.mat
 
 # Usage
 Question: in what situations does this work, and what situations does it not?
