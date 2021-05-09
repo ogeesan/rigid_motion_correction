@@ -1,17 +1,17 @@
 
-Motion correction script with some time improvements.
+Pre-processing for ScanImage exported data.
 
 # Quickstart
 - The folder must be on the Path
-- Use `correct_motion` in the Command Window to run motion correction
-  - Select template file
-  - Select folder of raw data
-  - Select folder to save motion corrected data into
-- Outputs
-  - Motion corrected data
-  - mclog.mat : motion correction pixel shifts
-  - totalaverage.tif : average of every frame motion corrected
-  - trial_averages.mat : matrix of each file's average
+- Motion correction
+  - Use `correct_motion` in the Command Window to run motion correction
+    - Select template file
+    - Select folder of raw data
+    - Select folder to save motion corrected data into
+  - Outputs
+    - Motion corrected data
+    - mclog.mat : motion correction pixel shifts
+    - totalaverage.tif : average of every frame motion corrected
 
 # Usage
 Question: in what situations does this work, and what situations does it not?
@@ -52,7 +52,7 @@ mc.motion_correct_folder()...
 
 # Fine details
 ## Phase-correlation
-The motion correction 
+The motion correction uses a [phase correlation](https://en.wikipedia.org/wiki/Phase_correlation) to determine the pixel offsets required.
 
 ## Loading
 ScanImage provides a function specifically written to read their output data and the speed increase is substantial.
