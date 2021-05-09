@@ -41,7 +41,7 @@ else
     baseimg = [];
 end
 RR.plot(roimeans,roimasks,baseimg)
-sgtitle(readdir)
+sgtitle(readdir,'Interpreter','none')
 
 save(fullfile(basedir,'Facrosstrials.mat'),'roimeans');
 fprintf('%s Completed reading in %.2f\n',datestr(now,13),toc)
