@@ -1,9 +1,10 @@
 
-Pre-processing for ScanImage exported data.
+Processing of ScanImage exported data, for axon/dendrite imaging.
 
 # Quickstart
 - The folder must be on the Path
 - Motion correction
+  - If you have the Parallel Computing Toolbox installed it will be used to greatly increase speed.
   - Use `correct_motion` in the Command Window to run motion correction
     - Select template file
     - Select folder of raw data
