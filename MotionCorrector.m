@@ -18,7 +18,7 @@ methods
     function obj = MotionCorrector
         % Check that major time-saving functions are on the path
         assert(exist('saveastiff.m','file') == 2,'Volume saving function not recognised.')
-        assert(exist('+ScanImageTiffReader','dir'),'Volume loading not found.')
+%         assert(exist('+ScanImageTiffReader','dir'),'Volume loading not found.')
     end
 
 
