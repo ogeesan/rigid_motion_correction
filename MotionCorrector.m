@@ -1,12 +1,9 @@
 classdef MotionCorrector
 % Motion correction class
 % Contains low-level functions that a motion correction script might want to use
+% Core methods
+%   mclog = motion_correct_folder(rawdir,templatepath,savedir)
     
-%{
-    Example usage:
-    mc = MotionCorrector;
-    mc.run
-%}
 properties
     templateimg % template image
     correctionlimit = 15 % the maximum number for frame offset
@@ -43,8 +40,11 @@ methods
         tiffopts.message = false; % prevent saveastiff from reporting each save
         
         % Find files to motion correct
-        filelist = dir(fullfile(rawdir,'/*.tif')); % raw data from SI will be tif and not tiff
+        filelist = dir(fullfile(rawdir,'/*.tif*')); % raw data from SI will be tif and not tiff
         nFiles = numel(filelist);
+        if nFiles == 0
+            error('Failed to find any files')
+        end
         if obj.check_memory(filelist)
             warning('Files are big, behaviour of the script in this situation is unknown.')
         end
