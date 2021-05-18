@@ -99,6 +99,8 @@ methods
         SI = obj.get_meta(filelist); % get the first ScanImage metadata that is in the raw data (single frame's)
         if ~isempty(SI)
             save(fullfile(basepath,'simeta.mat'),'SI');
+        else
+            warning('Scanimage metadata not found, data may have come from another acqusition system and so output may be unpredictable')
         end
         save(fullfile(basepath,'mclog.mat'),'mclog');
         save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
