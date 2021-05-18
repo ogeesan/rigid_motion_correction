@@ -96,15 +96,15 @@ methods
         
         % Save data into the same location as the template .tif
         basepath = fileparts(templatepath);
+        save(fullfile(basepath,'mclog.mat'),'mclog');
+        save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
+        saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
         SI = obj.get_meta(filelist); % get the first ScanImage metadata that is in the raw data (single frame's)
         if ~isempty(SI)
             save(fullfile(basepath,'simeta.mat'),'SI');
         else
             warning('Scanimage metadata not found, data may have come from another acqusition system and so output may be unpredictable')
         end
-        save(fullfile(basepath,'mclog.mat'),'mclog');
-        save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
-        saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
         
         trial_avgs = mean(trial_avgs,3);
         obj.outcome_plot(mclog,loop_times,trial_avgs,rawdir)
@@ -250,6 +250,10 @@ methods
             fpath = fullfile(filelist(counter).folder,filelist(counter).name);
             info = imfinfo(fpath);
             if isfield(info,'Software')
+                if ~strcmp(info(1).Software(1:2),'SI') % check for scan image marker
+                    SI = [];
+                    return % get out of this function because it ain't SI
+                end
                 SI = struct;
                 meta = strsplit(info(1).Software,'\n');
                 for xline = 1:numel(meta)
