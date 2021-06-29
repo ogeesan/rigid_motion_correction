@@ -117,15 +117,16 @@ methods
         % Outputs:
         %   roimasks : 1,nRois cell of each ROIs pixel coordinates as an
         %              index
-        [X,Y] = meshgrid(1:imwidth,1:imheight); % create grids with arbitrary numbers
+        
+        % create query points containing all possible locations in the
+        % image (i.e. a x/y coordinate for the center of each pixel)
+        [X,Y] = meshgrid(1:imwidth,1:imheight); 
+        
         nRois = numel(FijiRois);
         roimasks = cell(1,nRois);
         for roi = 1:nRois
-            roicoords = FijiRois{roi}.mnCoordinates + 0.5; % retrieve roi coordinates and add 0.5 to align with what was drawn in ImageJ
-            [in, on] = inpolygon(X,Y,roicoords(:,1),roicoords(:,2)); % check which pixels are (entirely) in or on (the edge of) area defined by roicoords
-            roimasks{roi} = find(in & ~on);
-            %             roimasks(:,:,xroi) = in & ~on; % would be used if roimasks was a logical index
-            %             roimasks(:,:,xroi) = inpolygon(X,Y,rois{xroi}.mnCoordinates(:,1),rois{xroi}.mnCoordinates(:,2)); % the old code
+            roimasks{roi} = find(obj.fijishape2mask(X,Y,...
+                FijiRois{roi}.mnCoordinates));
         end
         
         if obj.preventoverlap
@@ -135,6 +136,60 @@ methods
             for roi = 1:nRois
                 roimasks{roi} = setdiff(roimasks{roi}, duplicate_values);
             end
+        end
+    end
+    
+    
+    function roimask = fijishape2mask(~,X,Y,mnCoords,varargin)
+        % roimask = fijishape2mask(X,Y,mnCoordinates,__)
+        % Inputs
+        % ------
+        %   X and Y (array): output from meshgrid(1:imwidth,1:imheight)
+        %   mnCoordinates (array) : N x 2 array of points from Fiji
+        %   
+        %   Optional settings:
+        %       edges : 'exclude' or 'include'
+        p = inputParser();
+        p.addParameter('edges','include');
+        p.addParameter('debug',false)
+        p.parse(varargin{:});
+        
+        mnCoords = mnCoords + 0.5; % offset the lines to be line with what was drawn in Fiji (top left goes from [0,0] to [0.5,0.5]
+        [in, on] = inpolygon(X,Y,mnCoords(:,1),mnCoords(:,2)); % check which pixels centers are in or on the edge of area defined by roicoords
+        
+        if strcmp(p.Results.edges,'exclude')
+            roimask = in & ~on;
+        elseif strcmp(p.Results.edges,'include')
+            roimask = in;
+        else
+            error('''edges'' setting "%s" not recognised.',p.Results.edges)
+        end
+        
+        % Show plots of what the results look like if asked
+        if p.Results.debug
+            ax1 = nexttile;
+            imagesc(in);
+            title('in')
+            axis square
+            hold on
+            plot(mnCoords(:,1),mnCoords(:,2),'r')
+            hold off
+            ax2 = nexttile;
+            imagesc(on);
+            title('on')
+            axis square
+            hold on
+            plot(mnCoords(:,1),mnCoords(:,2),'r')
+            hold off
+            ax3 = nexttile;
+            imagesc(in & ~on);
+            title('in & ~on')
+            axis square
+            hold on
+            plot(mnCoords(:,1),mnCoords(:,2),'r')
+            hold off
+            linkaxes([ax1 ax2 ax3],'xy')
+            sgtitle('Differences in pixel allocation')
         end
     end
     
