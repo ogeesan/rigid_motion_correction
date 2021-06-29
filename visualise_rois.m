@@ -10,9 +10,10 @@ function [RGB, HSV] = visualise_rois(roimasks,baseimg,varargin)
 %   roilist : vector 
 %       defines which rois in roimasks to show, defaults to all roimasks
 %   hues : vector (0-1)
-%       Values for each roi (in roimasks) to hue, defaults to random
+%       Values for each roi (in roimasks) to hue, defaults to 
+%       rng('default')
 %   imsize : int
-%       size of frame to project RGBvis onto
+%       size of frame to project RGBvis onto, used if no baseimg is given
 %   
 % George Stuyt May 2021
 
