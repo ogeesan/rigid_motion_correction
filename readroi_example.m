@@ -1,4 +1,4 @@
-function readroi()
+function readroi_example()
 % readroi
 
 RR = ROIReader; % Initialise object

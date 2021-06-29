@@ -1,4 +1,4 @@
-function correct_motion(varargin)
+function correct_motion_example(varargin)
 % correct_motion
 % A wrapper script
 
