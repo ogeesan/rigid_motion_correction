@@ -9,6 +9,10 @@ properties
     correctionlimit = 15 % the maximum number for frame offset
     kernel = [];
     corr_window_edge = 32 % the edge of the frame that will be excluded from motion correction
+    
+    calcmethod = 'scanimage' % other possibility is takahashi, which is slower
+    
+    use_parallel_processing = false;
 
     save_result = true; % if true, save motion corrected tifs. Otherwise it only outputs mclog
 
@@ -22,7 +26,7 @@ methods
     end
 
 
-    function mclog = motion_correct_folder(obj,rawdir,templatepath,savedir)
+    function mclog = motion_correct_files(obj,fpaths,templatepath,savedir)
         % The core function
         baseinfo = imfinfo(templatepath);
         nFrames = numel(baseinfo);
@@ -38,37 +42,50 @@ methods
         
         tiffopts.overwrite = true; % make saveastiff overwrite if there's a file
         tiffopts.message = false; % prevent saveastiff from reporting each save
-        
-        % Find files to motion correct
-        filelist = dir(fullfile(rawdir,'/*.tif*')); % raw data from SI will be tif and not tiff
-        nFiles = numel(filelist);
+      
+        nFiles = numel(fpaths);
         if nFiles == 0
             error('Failed to find any files')
         end
-        if obj.check_memory(filelist)
+        if obj.check_memory(fpaths)
             warning('Files are big, behaviour of the script in this situation is unknown.')
         end
         
         % Initialise storage and reporters
         mclog = struct; % shifts for each file
+        tif_metadatas = struct;
+        mc_metadata = struct;
         loop_times = NaN(1,nFiles); % time taken to motion correct the file
         trial_avgs = NaN(imheight,imwidth,nFiles); % average of each file
-        fprintf('%s Commencing motion correction of %i files\n\tRaw: %s\n\tOut: %s\n',...
-            datestr(now,13),nFiles,rawdir,savedir)
+        
+        mc_metadata.template = templatepath;
+        mc_metadata.correction_limit = obj.correctionlimit;
+        mc_metadata.kernel = obj.kernel;
+        mc_metadata.corr_window_edge = obj.corr_window_edge;
+        
         fprintf('Total:     ');
         fprintf([repmat('.',1,nFiles) '\n'])
         fprintf('Progress:  \n')
         loopstart = tic;
         
         % Initialise the parallel toolbox silently
-        try
-            evalc('parpool()'); % suppress the parpool message
-        catch % if parallel toolbox isn't installed then it fails silently
+        if obj.use_parallel_processing
+            try
+                evalc('parpool()'); % suppress the parpool message
+            catch % if parallel toolbox isn't installed then it fails silently
+            end
+        else
+            try
+            ps = parallel.Settings; % create Settings object
+            og_pool_autocreate_Setting = ps.Pool.AutoCreate; % store the original state
+            ps.Pool.AutoCreate = false; % prevent a parallel pool from being created
+            catch
+            end
         end
         
         parfor xfile = 1:nFiles % uses the Parallel Computing Toolbox (if installed)
             tic
-            rawpath = fullfile(filelist(xfile).folder,filelist(xfile).name);
+            rawpath = fullfile(fpaths(xfile).folder,fpaths(xfile).name);
             vol = readsitiff(rawpath); % use ScanImage's fast tif reader
             shifts = obj.find_video_offsets(vol); % calculate frame offsets of the video
             
@@ -76,6 +93,8 @@ methods
             mclog(xfile).name = rawpath;
             mclog(xfile).vshift = shifts(:, 1);
             mclog(xfile).hshift = shifts(:, 2);
+            
+            tif_metadatas(xfile).info = imfinfo(rawpath);
             
             % Apply the calculated pixel offsets onto the data
             vol = obj.apply_shifts(vol,shifts);
@@ -94,20 +113,21 @@ methods
         fprintf('%s Motion correction completed in %.1f seconds\n',...
             datestr(now,13),toc(loopstart));
         
-        % Save data into the same location as the template .tif
-        basepath = fileparts(templatepath);
-        save(fullfile(basepath,'mclog.mat'),'mclog');
-        save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
-        saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
-        SI = obj.get_meta(filelist); % get the first ScanImage metadata that is in the raw data (single frame's)
-        if ~isempty(SI)
-            save(fullfile(basepath,'simeta.mat'),'SI');
-        else
-            warning('Scanimage metadata not found, data may have come from another acqusition system and so output may be unpredictable')
+        if ~obj.use_parallel_processing
+            try
+            ps.Pool.AutoCreate = og_pool_autocreate_Setting; % store the original state;
+            catch
+            end
         end
         
+        % Save data into the same location as the template .tif
+        basepath = fileparts(templatepath);
+        save(fullfile(basepath,'mclog.mat'),'mclog','tif_metadatas','mc_metadata'); % save mclog and imfinfo() into the file
+        save(fullfile(basepath,'trial_avgs.mat'),'trial_avgs')
+        saveastiff(mean(trial_avgs,3),fullfile(basepath,'totalaverage.tif'),tiffopts);
+        
         trial_avgs = mean(trial_avgs,3);
-        obj.outcome_plot(mclog,loop_times,trial_avgs,rawdir)
+        obj.outcome_plot(mclog,loop_times,trial_avgs)
     end
     
 
@@ -185,6 +205,12 @@ methods
         end
         shift = [vertical horizontal]; % row-column for the amount of shift
     end
+    
+    
+    function [shifts, quality] = scanimagecorrect(~,frame,preprocessedbase)
+        [~, yx, quality] = motionCorrection.fftCorrSideProj_detectMotionFcn(preprocessedbase,frame);
+        shifts = yx;
+    end
 
 
     function shifts = find_video_offsets(obj,vol,base)
@@ -194,84 +220,64 @@ methods
         end
         nFrames = size(vol,3); % assumes 3rd dimensions is the z-axis
         shifts = NaN(nFrames,2);
-        for xframe = 1:nFrames
-            shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),base);
+        
+        switch obj.calcmethod
+            case 'scanimage'
+                [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(base);
+                for xframe = 1:nFrames
+                    shifts(xframe,:) = obj.scanimagecorrect(vol(:,:,xframe),preprocessed_base);
+                end
+            case 'takahashi'
+                for xframe = 1:nFrames
+                    shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),base);
+                end
         end
     end
 
 
-    function dirs = getdirs_ui(~)
+    function dirs = getdirs_ui(obj)
+        % dirs = getdirs_ui
         % Interface to select files
+        
+        dirs = struct;
+        
         [fname, basedir] = uigetfile('*.tif*', 'Pick a Tif-file for base image');
         if isequal(fname, 0) || isequal(basedir, 0)
-            disp('User canceled')
-            return;
+            error('User canceled')
         end
         current_directory = pwd; % save where you currently are for later
         cd(basedir); % cd() sets the current directory (to easily specify the next two path names)
+        dirs.fname = fname;
+        dirs.basedir = basedir;
+        dirs.templatepath = fullfile(basedir,fname);
 
         % raw files
         rawdir = uigetdir('*.tif*', 'Select folder containing Tif-files to motion correct'); % location of raw files
         if isequal(rawdir, 0)
-            disp('User canceled')
-            return;
+            error('User canceled')
         end
-
-        % new save location for motion corrected files
-        savedir = uigetdir([], 'Select a folder to save motion corrected files into');
-        if isequal(savedir, 0)
-            disp('User canceled')
-            return;
-        end
-
+        dirs.rawdir = rawdir;
+        dirs.fpaths = dir(fullfile(rawdir,'/*.tif*'));
+ 
         assert(~strcmp(basedir,rawdir),'Base file and raw files should not be in the same place.') % it's just bad practice yo, keep the raw data in its own folder
 
-        % Places
-        dirs.fname = fname;
-        dirs.basedir = basedir;
-        dirs.templatepath = fullfile(basedir,fname);
-        dirs.rawdir = rawdir;
-        dirs.savedir = savedir;
+        % new save location for motion corrected files
+        if obj.save_result
+            savedir = uigetdir([], 'Select a folder to save motion corrected files into');
+            if isequal(savedir, 0)
+                error('User canceled')
+            end    
+            dirs.savedir = savedir;
+        else
+            dirs.savedir = [];
+        end
+
+        
         cd(current_directory)
     end
     
     
-    function SI = get_meta(~,filelist)
-        % Returns the ScanImage 'Software' metadata from the first frame
-        % that it can find it for.
-        
-        counter = 0;
-        SI = [];
-        while true
-            counter = counter + 1;
-            if counter > numel(filelist) % if the raw data isn't scanimage
-                break
-            end
-            fpath = fullfile(filelist(counter).folder,filelist(counter).name);
-            info = imfinfo(fpath);
-            if isfield(info,'Software')
-                if ~strcmp(info(1).Software(1:2),'SI') % check for scan image marker
-                    SI = [];
-                    return % get out of this function because it ain't SI
-                end
-                SI = struct;
-                meta = strsplit(info(1).Software,'\n');
-                for xline = 1:numel(meta)
-                    data = meta{xline};
-                    if isempty(data)
-                        continue
-                    end
-                    data = strsplit(data,' = '); % now split in two, with identifier and value
-                    SI(xline).Software = data{1};
-                    SI(xline).Value = data{2};
-                end
-                break
-            end
-        end
-    end
-    
-    
-    function outcome_plot(~,mclog,loop_times,trial_avgs,rawdir)
+    function outcome_plot(~,mclog,loop_times,trial_avgs)
         % Create a figure to report that the session was completed
         figure('Name','Operation completed');
         
@@ -294,8 +300,6 @@ methods
         subplot(5,8,33:40)
         bar(loop_times,'EdgeAlpha',0,'BarWidth',1) % plot time taken for each loop
         xlabel('Loop');ylabel('Time (s)');title('Time per loop');yline(mean(loop_times),':');
-        
-        sgtitle(rawdir,'Interpreter','none')
     end
 end
 end
