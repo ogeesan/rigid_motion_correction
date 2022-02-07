@@ -9,12 +9,15 @@ properties
     correctionlimit = 15 % the maximum number for frame offset
     kernel = [];
     corr_window_edge = 32 % the edge of the frame that will be excluded from motion correction
+    height
+    width
     
     calcmethod = 'scanimage' % other possibility is takahashi, which is slower
     
     use_parallel_processing = false;
 
     save_result = true; % if true, save motion corrected tifs. Otherwise it only outputs mclog
+    
 
 end
 
@@ -153,23 +156,22 @@ methods
     end
     
     
-    function shift = corpeak2(obj,frame,base)
+    function shift = corpeak2(obj,frame,fourier_base)
         % The actual act of motion correction.
         % A phase-correlation is used to find the x-y shift that would result in the highest
         % correlation between the frame and the base image.
         % base is an optional argument, where otherwise it takes obj.templateimg
 
-        if nargin < 3; base = obj.templateimg; end
-
         % Trim the data for motion correction
-        [height, width] = size(base);
-        base = base(:, obj.corr_window_edge+1 : width - obj.corr_window_edge);
-        frame = frame(:, obj.corr_window_edge+1 : width - obj.corr_window_edge);
-        width = width - obj.corr_window_edge*2; % ! I don't know why this is only done for width
+%         base = base(:, obj.corr_window_edge+1 : obj.width - obj.corr_window_edge);
+        frame = frame(:, obj.corr_window_edge+1 : obj.width - obj.corr_window_edge);
+        obj.width = obj.width - obj.corr_window_edge*2; % ! I don't know why this is only done for width
 
         % fast Fourier transforms
-        fourier_base = fft2(double(base));
+%         fourier_base = fft2(double(base));
         fourier_frame = fft2(double(frame));
+        assert(all(size(fourier_base) == size(fourier_frame)),...
+            "Size of images did not match.")
 
         % kernel is used to define a filter? I don't know
         if ~isempty(obj.kernel)
@@ -183,8 +185,8 @@ methods
         cf = ifft2(buf); % inverse fast Fourier transform - the phase correlation, imagesc(cf) if you want to see it
 
         % restrict search window of max correlation search
-        cf(obj.correctionlimit + 1 : height - obj.correctionlimit, :) = NaN;
-        cf(:, obj.correctionlimit + 1 : width - obj.correctionlimit) = NaN;
+        cf(obj.correctionlimit + 1 : obj.height - obj.correctionlimit, :) = NaN;
+        cf(:, obj.correctionlimit + 1 : obj.width - obj.correctionlimit) = NaN;
         % cf(16 : height - 15, :) = 0; % original
         % cf(:, 16 : width - 15) = 0;
 
@@ -193,13 +195,13 @@ methods
         [~, horzidx] = max(mcf1); % the maximum values in the row of maximums - index of the max i.e. horizontal index
 
         % account for the size of the image and direction and stuff
-        if vertidxs(horzidx) > height / 2 % if
-            vertical = vertidxs(horzidx) - height - 1;
+        if vertidxs(horzidx) > obj.height / 2 % if
+            vertical = vertidxs(horzidx) - obj.height - 1;
         else
             vertical = vertidxs(horzidx) - 1;
         end
-        if horzidx > width / 2
-            horizontal = horzidx - width - 1;
+        if horzidx > obj.width / 2
+            horizontal = horzidx - obj.width - 1;
         else
             horizontal = horzidx - 1;
         end
@@ -211,8 +213,15 @@ methods
         [~, shifts, quality, cii, cjj] = motionCorrection.fftCorrSideProj_detectMotionFcn(preprocessedbase,frame);
     end
 
-    function preprocessed_base = scanimage_base_preprocess(~,img)
-        [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(img);
+    function preprocessed_base = scanimage_base_preprocess(~,baseimg, preprocess_method)
+        % Precalculates fourier transformation of the template image
+        switch preprocess_method
+            case 'scanimage'
+                [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(baseimg);
+            case 'takahashi'
+                baseimg = baseimg(:, obj.corr_window_edge+1 : obj.width - obj.corr_window_edge);
+                preprocessed_base = ff2t(double(baseimg));
+        end
     end
 
 
@@ -223,16 +232,18 @@ methods
         end
         nFrames = size(vol,3); % assumes 3rd dimensions is the z-axis
         shifts = NaN(nFrames,2);
+        [obj.height, obj.width] = size(base);
         
         switch obj.calcmethod
             case 'scanimage'
-                preprocessed_base = obj.scanimage_base_preprocess(base);
+                preprocessed_base = obj.scanimage_base_preprocess(base, obj.calcmethod);
                 for xframe = 1:nFrames
                     shifts(xframe,:) = obj.scanimagecorrect(vol(:,:,xframe),preprocessed_base);
                 end
             case 'takahashi'
+                fourier_base = obj.scanimage_base_preprocess(base, obj.calcmethod);
                 for xframe = 1:nFrames
-                    shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),base);
+                    shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),fourier_base);
                 end
             otherwise
                 error('Calculation method obj.calcmethod not recognised: %s', obj.calcmethod)
