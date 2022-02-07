@@ -93,8 +93,8 @@ methods
             mclog(xfile).name = rawpath;
             mclog(xfile).vshift = shifts(:, 1);
             mclog(xfile).hshift = shifts(:, 2);
-            
-            tif_metadatas(xfile).info = imfinfo(rawpath);
+            info = imfinfo(rawpath);
+            tif_metadatas(xfile).info = info(1);
             
             % Apply the calculated pixel offsets onto the data
             vol = obj.apply_shifts(vol,shifts);
@@ -207,9 +207,12 @@ methods
     end
     
     
-    function [shifts, quality] = scanimagecorrect(~,frame,preprocessedbase)
-        [~, yx, quality] = motionCorrection.fftCorrSideProj_detectMotionFcn(preprocessedbase,frame);
-        shifts = yx;
+    function [shifts, quality, cii, cjj] = scanimagecorrect(~,frame,preprocessedbase)
+        [~, shifts, quality, cii, cjj] = motionCorrection.fftCorrSideProj_detectMotionFcn(preprocessedbase,frame);
+    end
+
+    function preprocessed_base = scanimage_base_preprocess(~,img)
+        [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(img);
     end
 
 
@@ -223,7 +226,7 @@ methods
         
         switch obj.calcmethod
             case 'scanimage'
-                [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(base);
+                preprocessed_base = obj.scanimage_base_preprocess(base);
                 for xframe = 1:nFrames
                     shifts(xframe,:) = obj.scanimagecorrect(vol(:,:,xframe),preprocessed_base);
                 end
@@ -231,6 +234,8 @@ methods
                 for xframe = 1:nFrames
                     shifts(xframe,:) = obj.corpeak2(vol(:,:,xframe),base);
                 end
+            otherwise
+                error('Calculation method obj.calcmethod not recognised: %s', obj.calcmethod)
         end
     end
 
