@@ -3,6 +3,9 @@ properties
     use_raw = false;
     minvalue = 100; % raw data values below this amount will be set to zero, as it's dark noise
     preventoverlap = true;
+    
+    nearsize = 4;
+    backgroundsize = 2;
 end
 
 
@@ -41,10 +44,12 @@ methods
         obj.plot(roimeans,roimasks,baseimg)
         
         % --  Package information and save it
-        save(fullfile(basedir,'Facrosstrials.mat'),'roimeans');
+        
         
         % Save the metadata about how the traces were extracted
         roidata = struct;
+        roidata.extracted_time = datetime;
+        roidata.fpaths = fpaths;
         roidata.roimasks = roimasks;
         roidata.FijiRois = FijiRois;
         roidata.imheight = imheight;
@@ -52,12 +57,16 @@ methods
         roidata.minvalue = obj.minvalue;
         roidata.preventoverlap = obj.preventoverlap;
         roidata.use_raw = obj.use_raw;
-        save(fullfile(basedir,'FAT_metadata.mat'),'roidata');
+        save(fullfile(basedir,'Facrosstrials.mat'),'roimeans','roidata');
+%         save(fullfile(basedir,'roimeans_metadata.mat'),'roidata');
         
     end
     
     
     function roimeans = calculate_roimeans(obj,filepaths,roimasks)
+        % roimeans = calculate_roimeans(filepaths,roimasks,___)
+        %   Extracts mean values of each ROI mask in each frame for each
+        %   file in filepaths.
         nRois = numel(roimasks);
         nFiles = numel(filepaths);
         roimeans = cell(nFiles,nRois);
@@ -110,7 +119,8 @@ methods
     
     
     function roimasks = fijirois2masks(obj,FijiRois,imheight,imwidth)
-        % Converts Fiji's ROI coordinates into indicies of each ROI
+        % Converts a the set of Fiji ROI information into a cell of each
+        % ROI mask
         % Inputs:
         %   FijiRois : the output of ReadImageJROIs()
         %   imheight and imwidth : size of the individual frame
@@ -120,13 +130,12 @@ methods
         
         % create query points containing all possible locations in the
         % image (i.e. a x/y coordinate for the center of each pixel)
-        [X,Y] = meshgrid(1:imwidth,1:imheight); 
-        
-        nRois = numel(FijiRois);
-        roimasks = cell(1,nRois);
+        % I guess this actually isn't a masks, it's an index...
+
+        roimasks = obj.fijirois2logicalmasks(FijiRois, imheight, imwidth);
+        nRois = numel(roimasks);
         for roi = 1:nRois
-            roimasks{roi} = find(obj.fijishape2mask(X,Y,...
-                FijiRois{roi}.mnCoordinates));
+            roimasks{roi} = find(roimasks{roi});
         end
         
         if obj.preventoverlap
@@ -139,9 +148,28 @@ methods
         end
     end
     
+    function logicalmasks = fijirois2logicalmasks(obj, FijiRois, imheight, imwidth)
+        % Creates logical mask of imheightximwidth
+        % Returns: cell(1,nRois) of logical masks
+        [X,Y] = meshgrid(1:imwidth,1:imheight);
+        
+        nRois = numel(FijiRois);
+        logicalmasks = cell(1,nRois);
+        for roi = 1:nRois
+            logicalmasks{roi} = obj.fijishape2mask(X,Y,...
+                FijiRois{roi}.mnCoordinates);
+        end
+    end
+    
+    function bgmask = generatebgmask(obj, roimask)
+        nearmask = imdilate(roimask, strel('disk', obj.nearsize)) & ~roimask;
+        bgmask =   imdilate(roimask, strel('disk', obj.nearsize + obj.backgroundsize)) & ~roimask & ~nearmask;
+    end
+    
     
     function roimask = fijishape2mask(~,X,Y,mnCoords,varargin)
         % roimask = fijishape2mask(X,Y,mnCoordinates,__)
+        % Converts a single set of Fiji coordinates to a pixel mask
         % Inputs
         % ------
         %   X and Y (array): output from meshgrid(1:imwidth,1:imheight)
