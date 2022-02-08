@@ -9,7 +9,7 @@ properties
     correctionlimit = 15 % the maximum number for frame offset
     kernel = [];
     corr_window_edge = 32 % the edge of the frame that will be excluded from motion correction
-    height
+    height  % Height and width of template image
     width
     
     calcmethod = 'scanimage' % other possibility is takahashi, which is slower
