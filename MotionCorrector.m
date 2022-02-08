@@ -220,7 +220,7 @@ methods
                 [~,preprocessed_base] = motionCorrection.fftCorrSideProj_preprocessFcn(baseimg);
             case 'takahashi'
                 baseimg = baseimg(:, obj.corr_window_edge+1 : obj.width - obj.corr_window_edge);
-                preprocessed_base = ff2t(double(baseimg));
+                preprocessed_base = fft2(double(baseimg));
         end
     end
 
