@@ -213,7 +213,7 @@ methods
         [~, shifts, quality, cii, cjj] = motionCorrection.fftCorrSideProj_detectMotionFcn(preprocessedbase,frame);
     end
 
-    function preprocessed_base = scanimage_base_preprocess(~,baseimg, preprocess_method)
+    function preprocessed_base = scanimage_base_preprocess(obj,baseimg, preprocess_method)
         % Precalculates fourier transformation of the template image
         switch preprocess_method
             case 'scanimage'
